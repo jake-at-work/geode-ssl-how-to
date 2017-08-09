@@ -1,17 +1,33 @@
 # Apache Geode How-To
 
+Follow Jamie Nguyen's (OpenSSL Certificate Authority)[https://jamielinux.com/docs/openssl-certificate-authority/index.html] guide with the below ammendments.
 
-
-
-TODO - Steps to create server/client certificate
 
 ## Intermediate CA
+Add the following extension to the `/roo/ca/intermediate/openssl.cnf` file you created.
+```
+[ server_client_cert ]
+# Extensions for server/client certificates (`man x509v3_config`).
+basicConstraints = CA:FALSE
+nsCertType = server, client
+nsComment = "OpenSSL Generated Server Certificate"
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid,issuer:always
+keyUsage = critical, digitalSignature, keyEncipherment
+extendedKeyUsage = serverAuth, clientAuth
+```
+
+This step appears neccessary on some versions of OpenSSL.
 ```
 # cd /root/ca/intermediate
 # touch index.txt.attr
 ```
 
 ## GemFire Server Certificates
+### Locator
+It is best practice that your certificate file name and Common Name (CN) match the hostname of the locator. If you have more than one locator then repeat these steps for each locator.
+
+Generate a private key for locator1.example.com.
 ```
 # cd /root/ca
 # openssl genrsa -aes256 \
@@ -19,6 +35,7 @@ TODO - Steps to create server/client certificate
 # chmod 400 intermediate/private/locator1.example.com.key.pem
 ```
 
+Generate a certificate signing request for using the private key we just created.
 ```
 # cd /root/ca
 # openssl req -config intermediate/openssl.cnf \
@@ -38,6 +55,7 @@ Common Name []:locator1.example.com
 Email Address []:
 ```
 
+Use oure intermediate CA to create a certificate that will work for both server and client authentication. Because locators act as peers in the distributed system they act as both client and server in terms of SSL/TLS. To do this we use the `server_client_cert` extenstion we defined in the `intermediate/openssl.cnf` file.
 ```
 # cd /root/ca
 # openssl ca -config intermediate/openssl.cnf \
@@ -47,6 +65,8 @@ Email Address []:
 # chmod 444 intermediate/certs/locator1.example.com.cert.pem
 ```
 
+### Server
+Creating a certificate for a server is exactly the same as you did for the locator except for changing the hostname. It is best practice that your certificate file name and Common Name (CN) match the hostname of the server. If you have more than one server then repeat these steps for each server. If you have multiple servers running on the same host then use the same key and certificate for each server on that host. If you have a locator sharing the same host as the server then the locator should use that same key and certificate as well. 
 
 ```
 # cd /root/ca
