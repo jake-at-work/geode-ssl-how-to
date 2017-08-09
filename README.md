@@ -2,6 +2,8 @@
 
 Follow Jamie Nguyen's [OpenSSL Certificate Authority](https://jamielinux.com/docs/openssl-certificate-authority/index.html) and stop after completing the *Create the intermediate pair* section.
 
+## Root CA
+
 ## Intermediate CA
 Add the following extensions to the `/roo/ca/intermediate/openssl.cnf` file you created.
 ```
@@ -24,7 +26,6 @@ subjectKeyIdentifier = hash
 authorityKeyIdentifier = keyid,issuer:always
 keyUsage = critical, digitalSignature, keyEncipherment
 extendedKeyUsage = clientAuth
-
 ```
 
 Create directory for keystores.
@@ -39,11 +40,30 @@ This step appears neccessary on some versions of OpenSSL.
 # touch index.txt.attr
 ```
 
+Create a Java compatible truststore. While normally you should only need to trust the root CA, due to a limitation of Geode Native you must trust all intermediate CAs as well.
+```
+# cd /root/ca/intermediate
+# keytool -importcert -file ../certs/ca.cert.pem \
+      -alias "Example Root CA" \
+      -keystore keystore/truststore.jks
+
+Enter keystore password:  secretpassword
+
+# keytool -importcert -file certs/intermediate.cert.pem \
+      -alias "Example Intermediate CA" \
+      -keystore keystore/truststore.jks
+
+Enter keystore password:  secretpassword
+
+# chmod 444 keystore/truststore.jks
+```
+
+---
 ## Geode Server Certificates
 ### Locator
 It is best practice that your certificate file name and Common Name (CN) match the hostname of the locator. If you have more than one locator then repeat these steps for each locator.
 
-Generate a private key for locator1.example.com.
+Generate a private key for *locator1.example.com*.
 ```
 # cd /root/ca
 # openssl genrsa -aes256 \
@@ -82,9 +102,9 @@ Use the intermediate CA to create a certificate that will work for both server a
 ```
 
 ### Geode Server
-Creating a certificate for a server is exactly the same as you did for the locator except for changing the hostname. It is best practice that your certificate file name and Common Name (CN) match the hostname of the server. If you have more than one server then repeat these steps for each server. If you have multiple servers running on the same host then use the same key and certificate for each server on that host. If you have a locator sharing the same host as the server then the locator should use that same key and certificate as well. 
+Creating a certificate for a server is exactly the same as you did for the locator except for changing the hostname. It is best practice that your certificate file name and Common Name (CN) match the hostname of the server. If you have more than one server then repeat these steps for each server. If you have multiple servers running on the same host then use the same key and certificate for each server on that host. If you have a locator sharing the same host as the server then the locator should use that same key and certificate as well.
 
-Generate a private key for server1.example.com.
+Generate a private key for *server1.example.com*.
 ```
 # cd /root/ca
 # openssl genrsa -aes256 \
@@ -122,7 +142,31 @@ Use the intermediate CA to create a certificate that will work for both server a
 # chmod 444 intermediate/certs/server1.example.com.cert.pem
 ```
 
-*TODO conversion to java*
+Create Java keystore. If you are using Geode 1.2+ you can stop at the PKCS#12 formatted keystore statement.
+```
+# cd /root/ca
+# cat intermediate/certs/server1.example.com.cert.pem \
+      intermediate/certs/ca-chain.cert.pem \
+      > intermediate/certs/server1.example.com.chain.pem
+# chmod 444 intermediate/certs/server1.example.com.chain.pem
+```
+```
+# openssl pkcs12 -export \
+      -inkey intermediate/private/server1.example.com.key.pem \
+      -in intermediate/certs/server1.example.com.cert.pem \
+      -in intermediate/certs/ca-chain.cert.pem \
+      -name server1.example.com \
+      -out intermediate/keystore/server1.example.com.keystore.p12
+# chmod 444 intermediate/keystore/server1.example.com.keystore.p12
+```
+Convert to JKS format for Geode older than 1.2.
+```
+# keytool -importkeystore \
+      -srckeystore intermediate/keystore/server1.example.com.keystore.p12 \
+      -srcstoretype pkcs12 \
+      -destkeystore intermediate/keystore/server1.example.com.keystore.jks
+# chmod 444 intermediate/keystore/server1.example.com.keystore.jks
+```
 
 ---
 
@@ -137,7 +181,7 @@ Generate a private key for *client1.example.com*.
 # chmod 400 intermediate/private/client1.example.com.key.pem
 ```
 
-Generate a certificate signing request for using the private key we just created. 
+Generate a certificate signing request for using the private key we just created.
 ```
 # cd /root/ca
 # openssl req -config intermediate/openssl.cnf \
@@ -182,4 +226,3 @@ Create a keystore PEM file. Note that the private key must be first in the file.
 
 ---
 ## Deployment
-
