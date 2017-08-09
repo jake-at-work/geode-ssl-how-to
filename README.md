@@ -3,17 +3,34 @@
 Follow Jamie Nguyen's [OpenSSL Certificate Authority](https://jamielinux.com/docs/openssl-certificate-authority/index.html) and stop after completing the *Create the intermediate pair* section.
 
 ## Intermediate CA
-Add the following extension to the `/roo/ca/intermediate/openssl.cnf` file you created.
+Add the following extensions to the `/roo/ca/intermediate/openssl.cnf` file you created.
 ```
-[ server_client_cert ]
+[ geode_server_cert ]
 # Extensions for server/client certificates (`man x509v3_config`).
 basicConstraints = CA:FALSE
 nsCertType = server, client
-nsComment = "OpenSSL Generated Server Certificate"
+nsComment = "OpenSSL Generated Geode Server Certificate"
 subjectKeyIdentifier = hash
 authorityKeyIdentifier = keyid,issuer:always
 keyUsage = critical, digitalSignature, keyEncipherment
 extendedKeyUsage = serverAuth, clientAuth
+
+[ geode_client_cert ]
+# Extensions for server/client certificates (`man x509v3_config`).
+basicConstraints = CA:FALSE
+nsCertType = client
+nsComment = "OpenSSL Generated Geode Client Certificate"
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid,issuer:always
+keyUsage = critical, digitalSignature, keyEncipherment
+extendedKeyUsage = clientAuth
+
+```
+
+Create directory for keystores.
+```
+# cd /root/ca/intermediate
+# mkdir keystore
 ```
 
 This step appears neccessary on some versions of OpenSSL.
@@ -95,18 +112,22 @@ Common Name []:server1.example.com
 Email Address []:
 ```
 
-Use the intermediate CA to create a certificate that will work for both server and client authentication. Since servers act as peers in the distributed system they are as both client and server in terms of SSL/TLS. To do this we use the `server_client_cert` extenstion we defined in the `intermediate/openssl.cnf` file.
+Use the intermediate CA to create a certificate that will work for both server and client authentication. Since servers act as peers in the distributed system they are as both client and server in terms of SSL/TLS. To do this we use the `geode_server_cert` extenstion defined in the `intermediate/openssl.cnf` file.
 ```
 # cd /root/ca
 # openssl ca -config intermediate/openssl.cnf \
-      -extensions server_client_cert -days 375 -notext -md sha256 \
+      -extensions geode_server_cert -days 375 -notext -md sha256 \
       -in intermediate/csr/server1.example.com.csr.pem \
       -out intermediate/certs/server1.example.com.cert.pem
 # chmod 444 intermediate/certs/server1.example.com.cert.pem
 ```
 
+*TODO conversion to java*
+
+---
+
 ## Geode Clients Certificates
-Geode servers do not validate the CN or other attributes in the client certificate so there is no hard rule for CN or other attributes in client certificates. I would suggest using a CN that represents your intent with using client certificates with Geode. For example, if you want to authenticate specific host machines then use a CN that matches the client host machine and have all clients on that host share the same certificate and private key. Ultimately the server is only going to validate the chain of trust in the client certificate so your distrubution of client certificates and private keys is open to variation. It is bad practice though to share private keys across multiple hosts since you would have to re-key and certificate all your hosts should the shared key become compromised.
+Client certificate authentication is option in Geode. The server only validates the chain of trust in the client certifacate. The server does not validate any of the attributes in the certificate. It is bad practice to share private keys across multiple hosts since you would have to re-key and certificate all your hosts should the shared key become compromised. It is suggested that you at least create a client certificate per host running client processes. You may create mulitple client certificates per host. The following instructions assume a single client certificate per host. Repeat this process for each client host that will connect to the Geode cache cluster.
 
 Generate a private key for *client1.example.com*.
 ```
@@ -136,12 +157,29 @@ Common Name []:client1.example.com
 Email Address []:
 ```
 
-Use the intermediate CA to create a certificate that will work for client authentication only using the `usr_cert` extenstion defined in the `intermediate/openssl.cnf` file.
+Use the intermediate CA to create a certificate that will work for client authentication only using the `geode_client_cert` extenstion defined in the `intermediate/openssl.cnf` file.
 ```
 # cd /root/ca
 # openssl ca -config intermediate/openssl.cnf \
-      -extensions usr_crt -days 375 -notext -md sha256 \
+      -extensions geode_client_cert -days 375 -notext -md sha256 \
       -in intermediate/csr/client1.example.com.csr.pem \
       -out intermediate/certs/client1.example.com.cert.pem
 # chmod 444 intermediate/certs/client1.example.com.cert.pem
 ```
+
+### Java Clients
+*TODO Java keytool*
+
+### Native Clients
+Create a keystore PEM file. Note that the private key must be first in the file.
+```
+# cd /root/ca
+# cat intermediate/private/client1.example.com.key.pem \
+      intermediate/certs/client1.example.com.cert.pem \
+      > intermediate/keystore/client1.example.com.keystore.pem
+# chmod 444 intermediate/keystore/client1.example.com.keystore.pem
+```
+
+---
+## Deployment
+
