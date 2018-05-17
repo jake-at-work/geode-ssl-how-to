@@ -188,6 +188,71 @@ Create a keystore PEM file. Note that the private key must be first in the file.
 
 ---
 ## Deployment
+### Locator
+Make locator runtime directory.
+```
+# mdkir -p ~/geode/locator1
+```
+
+Securely copy the keystore and truststore to locators.
+```
+# cd /root/ca
+# scp intermediate/keystore/locator1.example.com.keystore.jks \
+      intermediate/keystore/truststore.jks \
+      locator1.example.com:geode/locator1
+```
+
+Add to `~/geode/locator1/security.properties`
+```
+ssl-enabled-components=all
+ssl-keystore=locator1.example.com.keystore.jks
+ssl-keystore-password=secretpassword
+ssl-keystore-type=jks
+ssl-truststore=truststore.jks
+ssl-truststore-password=secretpassword
+```
+
+Start the locator.
+```
+# cd ~/geode
+# gfsh
+gfsh>start locator --name=locator1 --security-properties-file=locator1/security.properties
+```
+
+### Server
+Make server runtime directory.
+```
+# mdkir -p ~/geode/server1
+```
+
+Securely copy the keystore and truststore to locators.
+```
+# cd /root/ca
+# scp intermediate/keystore/server1.example.com.keystore.jks \
+      intermediate/keystore/truststore.jks \
+      server1.example.com:geode/server1
+```
+
+Add to `~/geode/server1/security.properties`
+```
+ssl-enabled-components=all
+ssl-keystore=server1.example.com.keystore.jks
+ssl-keystore-password=secretpassword
+ssl-keystore-type=jks
+ssl-truststore=truststore.jks
+ssl-truststore-password=secretpassword
+```
+
+Start the server.
+```
+# cd ~/geode
+# gfsh
+gfsh>start server --name=server1 --security-properties-file=server1/security.properties
+```
+
+### Java Client
+
+### Native Client
 
 ---
 ## Cheat
